@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Крестики-нолики</title>
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --card: #ffffff;
+      --text: #1f2328;
+      --muted: #6b7078;
+      --line: #d9d4c7;
+      --x: #d9480f;
+      --o: #1971c2;
+      --win: #ffe8a3;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #16181c;
+        --card: #22252b;
+        --text: #eceef1;
+        --muted: #9aa0a8;
+        --line: #3a3f47;
+        --x: #ff8a4c;
+        --o: #5aa9ff;
+        --win: #4a3f12;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, "Segoe UI", sans-serif;
+    }
+    main { width: 100%; max-width: 380px; text-align: center; }
+    h1 { font-size: 28px; margin: 0 0 4px; }
+    .you { color: var(--muted); margin: 0 0 16px; min-height: 1.2em; }
+    .status {
+      font-size: 20px;
+      font-weight: 600;
+      min-height: 1.4em;
+      margin-bottom: 16px;
+    }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      background: var(--line);
+      padding: 8px;
+      border-radius: 16px;
+    }
+    .cell {
+      aspect-ratio: 1;
+      border: 0;
+      border-radius: 10px;
+      background: var(--card);
+      font: 700 clamp(40px, 16vw, 64px)/1 system-ui, sans-serif;
+      cursor: pointer;
+      transition: transform .08s, background .2s;
+    }
+    .cell:disabled { cursor: default; }
+    .cell:not(:disabled):hover { transform: scale(1.04); }
+    .cell.X { color: var(--x); }
+    .cell.O { color: var(--o); }
+    .cell.win { background: var(--win); }
+    .score {
+      display: flex;
+      justify-content: space-around;
+      margin: 20px 0;
+      font-size: 15px;
+      color: var(--muted);
+    }
+    .score b { display: block; font-size: 24px; color: var(--text); }
+    .score .sx b { color: var(--x); }
+    .score .so b { color: var(--o); }
+    button.reset {
+      font: inherit;
+      font-weight: 600;
+      padding: 10px 20px;
+      border: 0;
+      border-radius: 10px;
+      background: var(--text);
+      color: var(--bg);
+      cursor: pointer;
+    }
+    button.reset[hidden] { display: none; }
+    .share {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 10px;
+      background: var(--card);
+      font-size: 14px;
+      color: var(--muted);
+      word-break: break-all;
+    }
+    .share code { color: var(--text); font-size: 15px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Крестики-нолики</h1>
+    <p class="you" id="you">Подключаемся…</p>
+    <div class="status" id="status"></div>
+    <div class="board" id="board"></div>
+    <div class="score">
+      <div class="sx">Крестики<b id="sX">0</b></div>
+      <div>Ничьи<b id="sD">0</b></div>
+      <div class="so">Нолики<b id="sO">0</b></div>
+    </div>
+    <button class="reset" id="reset" hidden>Новая партия</button>
+    <div class="share" id="share" hidden></div>
+  </main>
+
+  <script>
+    // У каждой вкладки свой id, поэтому игру можно проверить и в двух вкладках
+    let id = sessionStorage.getItem('ttt-id');
+    if (!id) {
+      id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      sessionStorage.setItem('ttt-id', id);
+    }
+
+    const NAMES = { X: 'крестики ✕', O: 'нолики ◯' };
+    const boardEl = document.getElementById('board');
+    const cells = [];
+    for (let i = 0; i < 9; i++) {
+      const b = document.createElement('button');
+      b.className = 'cell';
+      b.setAttribute('aria-label', 'Клетка ' + (i + 1));
+      b.onclick = () => post('/move', { id, cell: i });
+      boardEl.appendChild(b);
+      cells.push(b);
+    }
+    document.getElementById('reset').onclick = () => post('/reset', { id });
+
+    function post(url, body) {
+      return fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    }
+
+    function render(s) {
+      const both = s.online.X && s.online.O;
+      const myTurn = s.you && s.you === s.turn && !s.winner && both;
+
+      document.getElementById('you').textContent = s.you
+        ? 'Вы играете за ' + NAMES[s.you]
+        : 'Вы зритель: оба места заняты';
+
+      let status;
+      if (s.winner === 'draw') status = 'Ничья!';
+      else if (s.winner) status = s.winner === s.you ? 'Вы победили! 🎉'
+        : s.you ? 'Вы проиграли' : 'Победили ' + NAMES[s.winner];
+      else if (!both) status = 'Ждём второго игрока…';
+      else if (myTurn) status = 'Ваш ход';
+      else if (s.you) status = 'Ход соперника…';
+      else status = 'Ходят ' + NAMES[s.turn];
+      document.getElementById('status').textContent = status;
+
+      s.board.forEach((v, i) => {
+        const c = cells[i];
+        c.textContent = v === 'X' ? '✕' : v === 'O' ? '◯' : '';
+        c.className = 'cell' + (v ? ' ' + v : '') + (s.line && s.line.includes(i) ? ' win' : '');
+        c.disabled = !myTurn || !!v;
+      });
+
+      document.getElementById('sX').textContent = s.score.X;
+      document.getElementById('sO').textContent = s.score.O;
+      document.getElementById('sD').textContent = s.score.draw;
+      document.getElementById('reset').hidden = !(s.you && s.winner);
+
+      const share = document.getElementById('share');
+      share.hidden = both || !s.share.length;
+      share.innerHTML = 'Второму игроку откройте в браузере:<br>' +
+        s.share.map(a => '<code>' + a + '</code>').join('<br>');
+    }
+
+    const events = new EventSource('/events?id=' + encodeURIComponent(id));
+    events.onmessage = (e) => render(JSON.parse(e.data));
+    events.onerror = () => {
+      document.getElementById('status').textContent = 'Нет связи с сервером…';
+    };
+  </script>
+</body>
+</html>
