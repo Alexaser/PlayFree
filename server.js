@@ -1,4 +1,4 @@
-// Сервер игры "Крестики-нолики" для двух компьютеров в одной сети.
+// Сервер игры "Крестики-нолики" с комнатами и полем от 3×3 до 10×10.
 // Запуск: node server.js  — затем откройте адрес, который он напечатает.
 
 const http = require('http');
@@ -7,26 +7,23 @@ const path = require('path');
 const os = require('os');
 
 const PORT = Number(process.env.PORT) || 3000;
-const LINES = [
-  [0, 1, 2], [3, 4, 5], [6, 7, 8],
-  [0, 3, 6], [1, 4, 7], [2, 5, 8],
-  [0, 4, 8], [2, 4, 6],
-];
+const MIN_SIZE = 3;
+const MAX_SIZE = 10;
+const ROOM_TTL = 10 * 60 * 1000; // пустая комната удаляется через 10 минут
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const DIRS = [[0, 1], [1, 0], [1, 1], [1, -1]];
 
-const game = {
-  board: Array(9).fill(null),
-  turn: 'X',
-  starter: 'X',
-  winner: null, // 'X' | 'O' | 'draw' | null
-  line: null,
-  score: { X: 0, O: 0, draw: 0 },
-};
-const players = { X: null, O: null }; // id клиента, занявшего роль
-const clients = new Map(); // id -> Set(ответов SSE)
-const leaveTimers = new Map();
+const rooms = new Map(); // код -> комната
 
-// Адреса компьютера в локальной сети, чтобы второй игрок знал, куда заходить
-function lanAddresses() {
+// Сколько знаков подряд нужно для победы на поле данного размера
+function needToWin(size) {
+  if (size <= 4) return size;
+  if (size === 5) return 4;
+  return 5;
+}
+
+// Адреса, по которым другой игрок может открыть игру
+function shareAddresses() {
   // На Render показываем публичную ссылку сайта
   if (process.env.RENDER_EXTERNAL_URL) return [process.env.RENDER_EXTERNAL_URL];
   const result = [];
@@ -38,33 +35,90 @@ function lanAddresses() {
   return result;
 }
 
-function roleOf(id) {
-  if (players.X === id) return 'X';
-  if (players.O === id) return 'O';
+function newCode() {
+  let code;
+  do {
+    code = '';
+    for (let i = 0; i < 4; i++) code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+  } while (rooms.has(code));
+  return code;
+}
+
+function createRoom(size) {
+  const room = {
+    code: newCode(),
+    size,
+    need: needToWin(size),
+    board: Array(size * size).fill(null),
+    turn: 'X',
+    starter: 'X',
+    winner: null, // 'X' | 'O' | 'draw' | null
+    line: null,
+    score: { X: 0, O: 0, draw: 0 },
+    players: { X: null, O: null }, // id клиента, занявшего роль
+    clients: new Map(), // id -> Set(ответов SSE)
+    leaveTimers: new Map(),
+    deleteTimer: null,
+  };
+  rooms.set(room.code, room);
+  scheduleDelete(room);
+  return room;
+}
+
+function scheduleDelete(room) {
+  clearTimeout(room.deleteTimer);
+  room.deleteTimer = setTimeout(() => {
+    if (room.clients.size === 0) rooms.delete(room.code);
+  }, ROOM_TTL);
+}
+
+function roleOf(room, id) {
+  if (room.players.X === id) return 'X';
+  if (room.players.O === id) return 'O';
   return null;
 }
 
-function send(res, id) {
+function send(room, res, id) {
   const data = {
-    ...game,
-    you: roleOf(id),
-    online: { X: !!players.X, O: !!players.O },
-    share: lanAddresses(),
+    code: room.code,
+    size: room.size,
+    need: room.need,
+    board: room.board,
+    turn: room.turn,
+    winner: room.winner,
+    line: room.line,
+    score: room.score,
+    you: roleOf(room, id),
+    online: { X: !!room.players.X, O: !!room.players.O },
+    share: shareAddresses(),
   };
   res.write(`data: ${JSON.stringify(data)}\n\n`);
 }
 
-function broadcast() {
-  for (const [id, set] of clients) for (const res of set) send(res, id);
+function broadcast(room) {
+  for (const [id, set] of room.clients) for (const res of set) send(room, res, id);
 }
 
-function checkWinner() {
-  for (const line of LINES) {
-    const [a, b, c] = line;
-    const v = game.board[a];
-    if (v && v === game.board[b] && v === game.board[c]) return { winner: v, line };
+// Проверяем линии через последний ход: так быстро даже на поле 10×10
+function checkWinner(room, cell) {
+  const { size, need, board } = room;
+  const mark = board[cell];
+  const r0 = Math.floor(cell / size);
+  const c0 = cell % size;
+  for (const [dr, dc] of DIRS) {
+    const line = [cell];
+    for (const sign of [1, -1]) {
+      let r = r0 + dr * sign;
+      let c = c0 + dc * sign;
+      while (r >= 0 && r < size && c >= 0 && c < size && board[r * size + c] === mark) {
+        line.push(r * size + c);
+        r += dr * sign;
+        c += dc * sign;
+      }
+    }
+    if (line.length >= need) return { winner: mark, line };
   }
-  if (game.board.every(Boolean)) return { winner: 'draw', line: null };
+  if (board.every(Boolean)) return { winner: 'draw', line: null };
   return null;
 }
 
@@ -86,77 +140,102 @@ function json(res, status, obj) {
   res.end(JSON.stringify(obj));
 }
 
-function handleEvents(req, res, id) {
+function getRoom(code) {
+  return rooms.get(String(code || '').toUpperCase());
+}
+
+function handleEvents(req, res, room, id) {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',
   });
 
-  clearTimeout(leaveTimers.get(id));
-  leaveTimers.delete(id);
-  if (!clients.has(id)) clients.set(id, new Set());
-  clients.get(id).add(res);
+  clearTimeout(room.leaveTimers.get(id));
+  room.leaveTimers.delete(id);
+  clearTimeout(room.deleteTimer);
+  if (!room.clients.has(id)) room.clients.set(id, new Set());
+  room.clients.get(id).add(res);
 
   // Первый пришедший играет за X, второй за O, остальные смотрят
-  if (!roleOf(id)) {
-    if (!players.X) players.X = id;
-    else if (!players.O) players.O = id;
+  if (!roleOf(room, id)) {
+    if (!room.players.X) room.players.X = id;
+    else if (!room.players.O) room.players.O = id;
   }
-  broadcast();
+  broadcast(room);
 
   const ping = setInterval(() => res.write(': ping\n\n'), 20000);
   req.on('close', () => {
     clearInterval(ping);
-    const set = clients.get(id);
+    const set = room.clients.get(id);
     set.delete(res);
     if (set.size > 0) return;
-    clients.delete(id);
+    room.clients.delete(id);
     // Даём несколько секунд на переподключение (например, обновление страницы)
-    leaveTimers.set(id, setTimeout(() => {
-      leaveTimers.delete(id);
-      if (clients.has(id)) return;
-      const role = roleOf(id);
-      if (role) players[role] = null;
-      broadcast();
+    room.leaveTimers.set(id, setTimeout(() => {
+      room.leaveTimers.delete(id);
+      if (room.clients.has(id)) return;
+      const role = roleOf(room, id);
+      if (role) room.players[role] = null;
+      broadcast(room);
+      if (room.clients.size === 0) scheduleDelete(room);
     }, 5000));
   });
 }
 
+function listRooms(res) {
+  const list = [...rooms.values()]
+    .filter((r) => !r.players.X || !r.players.O)
+    .map((r) => ({ code: r.code, size: r.size, need: r.need, players: +!!r.players.X + +!!r.players.O }));
+  json(res, 200, { rooms: list, share: shareAddresses() });
+}
+
+async function handleCreate(req, res) {
+  const { size } = await readJson(req);
+  if (!Number.isInteger(size) || size < MIN_SIZE || size > MAX_SIZE) {
+    return json(res, 400, { error: `Размер поля от ${MIN_SIZE} до ${MAX_SIZE}` });
+  }
+  json(res, 200, { code: createRoom(size).code });
+}
+
 async function handleMove(req, res) {
-  const { id, cell } = await readJson(req);
-  const role = roleOf(id);
+  const { room: code, id, cell } = await readJson(req);
+  const room = getRoom(code);
+  if (!room) return json(res, 404, { error: 'Комната не найдена' });
+  const role = roleOf(room, id);
   if (!role) return json(res, 403, { error: 'Вы зритель' });
-  if (!players.X || !players.O) return json(res, 409, { error: 'Ждём второго игрока' });
-  if (game.winner) return json(res, 409, { error: 'Игра окончена' });
-  if (role !== game.turn) return json(res, 409, { error: 'Сейчас не ваш ход' });
-  if (!Number.isInteger(cell) || cell < 0 || cell > 8 || game.board[cell]) {
+  if (!room.players.X || !room.players.O) return json(res, 409, { error: 'Ждём второго игрока' });
+  if (room.winner) return json(res, 409, { error: 'Игра окончена' });
+  if (role !== room.turn) return json(res, 409, { error: 'Сейчас не ваш ход' });
+  if (!Number.isInteger(cell) || cell < 0 || cell >= room.board.length || room.board[cell]) {
     return json(res, 400, { error: 'Клетка занята' });
   }
 
-  game.board[cell] = role;
-  const result = checkWinner();
+  room.board[cell] = role;
+  const result = checkWinner(room, cell);
   if (result) {
-    game.winner = result.winner;
-    game.line = result.line;
-    game.score[result.winner]++;
+    room.winner = result.winner;
+    room.line = result.line;
+    room.score[result.winner]++;
   } else {
-    game.turn = role === 'X' ? 'O' : 'X';
+    room.turn = role === 'X' ? 'O' : 'X';
   }
-  broadcast();
+  broadcast(room);
   json(res, 200, { ok: true });
 }
 
 async function handleReset(req, res) {
-  const { id } = await readJson(req);
-  if (!roleOf(id)) return json(res, 403, { error: 'Вы зритель' });
+  const { room: code, id } = await readJson(req);
+  const room = getRoom(code);
+  if (!room) return json(res, 404, { error: 'Комната не найдена' });
+  if (!roleOf(room, id)) return json(res, 403, { error: 'Вы зритель' });
   // Следующую партию начинает другой игрок
-  game.starter = game.starter === 'X' ? 'O' : 'X';
-  game.board = Array(9).fill(null);
-  game.turn = game.starter;
-  game.winner = null;
-  game.line = null;
-  broadcast();
+  room.starter = room.starter === 'X' ? 'O' : 'X';
+  room.board = Array(room.size * room.size).fill(null);
+  room.turn = room.starter;
+  room.winner = null;
+  room.line = null;
+  broadcast(room);
   json(res, 200, { ok: true });
 }
 
@@ -167,10 +246,14 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     return fs.createReadStream(path.join(__dirname, 'index.html')).pipe(res);
   }
+  if (req.method === 'GET' && url.pathname === '/rooms') return listRooms(res);
+  if (req.method === 'POST' && url.pathname === '/rooms') return handleCreate(req, res);
   if (req.method === 'GET' && url.pathname === '/events') {
+    const room = getRoom(url.searchParams.get('room'));
     const id = url.searchParams.get('id');
+    if (!room) return json(res, 404, { error: 'Комната не найдена' });
     if (!id) return json(res, 400, { error: 'Нет id' });
-    return handleEvents(req, res, id);
+    return handleEvents(req, res, room, id);
   }
   if (req.method === 'POST' && url.pathname === '/move') return handleMove(req, res);
   if (req.method === 'POST' && url.pathname === '/reset') return handleReset(req, res);
@@ -181,6 +264,6 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, '0.0.0.0', () => {
   console.log('Крестики-нолики запущены!');
   console.log(`На этом компьютере:  http://localhost:${PORT}`);
-  for (const addr of lanAddresses()) console.log(`На другом компьютере: ${addr}`);
+  for (const addr of shareAddresses()) console.log(`На другом компьютере: ${addr}`);
   console.log('Чтобы остановить сервер, нажмите Ctrl+C.');
 });

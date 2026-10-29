@@ -14,6 +14,8 @@
       --x: #d9480f;
       --o: #1971c2;
       --win: #ffe8a3;
+      --accent: #1f2328;
+      --accent-text: #f4f1ea;
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -25,6 +27,8 @@
         --x: #ff8a4c;
         --o: #5aa9ff;
         --win: #4a3f12;
+        --accent: #eceef1;
+        --accent-text: #16181c;
       }
     }
     * { box-sizing: border-box; }
@@ -39,83 +43,174 @@
       color: var(--text);
       font-family: system-ui, "Segoe UI", sans-serif;
     }
-    main { width: 100%; max-width: 380px; text-align: center; }
+    main { width: 100%; max-width: 560px; text-align: center; }
+    [hidden] { display: none !important; }
     h1 { font-size: 28px; margin: 0 0 4px; }
-    .you { color: var(--muted); margin: 0 0 16px; min-height: 1.2em; }
-    .status {
-      font-size: 20px;
-      font-weight: 600;
-      min-height: 1.4em;
-      margin-bottom: 16px;
-    }
-    .board {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      background: var(--line);
-      padding: 8px;
+    h2 { font-size: 17px; margin: 24px 0 10px; }
+    .muted { color: var(--muted); }
+    .panel {
+      background: var(--card);
       border-radius: 16px;
+      padding: 16px;
+      margin-top: 16px;
+      text-align: left;
+    }
+    .panel h2 { margin-top: 0; }
+    button {
+      font: inherit;
+      font-weight: 600;
+      padding: 10px 18px;
+      border: 0;
+      border-radius: 10px;
+      background: var(--accent);
+      color: var(--accent-text);
+      cursor: pointer;
+    }
+    button.ghost {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+    .sizes { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+    .sizes button {
+      flex: 1 0 56px;
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--line);
+      padding: 10px 0;
+    }
+    .sizes button.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+    .hint { font-size: 14px; margin: 6px 0 14px; }
+    .row { display: flex; gap: 8px; }
+    .row input {
+      flex: 1;
+      min-width: 0;
+      font: inherit;
+      font-size: 18px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--bg);
+      color: var(--text);
+    }
+    .rooms { list-style: none; margin: 0; padding: 0; }
+    .rooms li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 0;
+      border-top: 1px solid var(--line);
+    }
+    .rooms li:first-child { border-top: 0; }
+    .rooms b { font-size: 18px; letter-spacing: 2px; margin-right: 8px; }
+    .error { color: var(--x); min-height: 1.2em; margin-top: 8px; font-size: 14px; }
+
+    .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .top button { padding: 8px 12px; font-size: 14px; }
+    .room-code { font-size: 14px; color: var(--muted); }
+    .room-code b { color: var(--text); letter-spacing: 2px; font-size: 18px; }
+    .you { margin: 0 0 4px; min-height: 1.2em; }
+    .status { font-size: 20px; font-weight: 600; min-height: 1.4em; margin-bottom: 14px; }
+    .board {
+      --n: 3;
+      --size: min(100%, 560px);
+      display: grid;
+      grid-template-columns: repeat(var(--n), 1fr);
+      gap: calc(24px / var(--n));
+      background: var(--line);
+      padding: calc(24px / var(--n));
+      border-radius: 14px;
+      margin: 0 auto;
+      width: var(--size);
+      container-type: inline-size;
     }
     .cell {
       aspect-ratio: 1;
+      padding: 0;
       border: 0;
-      border-radius: 10px;
+      border-radius: calc(30px / var(--n));
       background: var(--card);
-      font: 700 clamp(40px, 16vw, 64px)/1 system-ui, sans-serif;
+      color: var(--text);
+      font-weight: 700;
+      font-size: calc(55cqi / var(--n));
+      line-height: 1;
       cursor: pointer;
       transition: transform .08s, background .2s;
     }
     .cell:disabled { cursor: default; }
-    .cell:not(:disabled):hover { transform: scale(1.04); }
+    .cell:not(:disabled):hover { transform: scale(1.05); }
     .cell.X { color: var(--x); }
     .cell.O { color: var(--o); }
     .cell.win { background: var(--win); }
+    .cell.last { box-shadow: inset 0 0 0 2px var(--line); }
     .score {
       display: flex;
       justify-content: space-around;
-      margin: 20px 0;
+      margin: 18px 0;
       font-size: 15px;
       color: var(--muted);
     }
     .score b { display: block; font-size: 24px; color: var(--text); }
     .score .sx b { color: var(--x); }
     .score .so b { color: var(--o); }
-    button.reset {
-      font: inherit;
-      font-weight: 600;
-      padding: 10px 20px;
-      border: 0;
-      border-radius: 10px;
-      background: var(--text);
-      color: var(--bg);
-      cursor: pointer;
-    }
-    button.reset[hidden] { display: none; }
-    .share {
-      margin-top: 16px;
-      padding: 12px;
-      border-radius: 10px;
-      background: var(--card);
-      font-size: 14px;
-      color: var(--muted);
-      word-break: break-all;
-    }
-    .share code { color: var(--text); font-size: 15px; }
+    .share { text-align: center; font-size: 14px; color: var(--muted); word-break: break-all; }
+    .share code { display: block; color: var(--text); font-size: 15px; margin: 6px 0 10px; }
   </style>
 </head>
 <body>
   <main>
-    <h1>Крестики-нолики</h1>
-    <p class="you" id="you">Подключаемся…</p>
-    <div class="status" id="status"></div>
-    <div class="board" id="board"></div>
-    <div class="score">
-      <div class="sx">Крестики<b id="sX">0</b></div>
-      <div>Ничьи<b id="sD">0</b></div>
-      <div class="so">Нолики<b id="sO">0</b></div>
-    </div>
-    <button class="reset" id="reset" hidden>Новая партия</button>
-    <div class="share" id="share" hidden></div>
+    <!-- Лобби: создание комнаты и вход по коду -->
+    <section id="lobby" hidden>
+      <h1>Крестики-нолики</h1>
+      <p class="muted">Создайте комнату и позовите друга</p>
+
+      <div class="panel">
+        <h2>Новая комната</h2>
+        <div class="sizes" id="sizes"></div>
+        <p class="hint muted" id="sizeHint"></p>
+        <button id="create">Создать комнату</button>
+      </div>
+
+      <div class="panel">
+        <h2>Войти по коду</h2>
+        <div class="row">
+          <input id="codeInput" maxlength="4" placeholder="КОД" autocomplete="off">
+          <button id="join">Войти</button>
+        </div>
+        <div class="error" id="lobbyError"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Открытые комнаты</h2>
+        <ul class="rooms" id="rooms"></ul>
+        <p class="muted" id="noRooms">Пока нет комнат, где ждут соперника.</p>
+      </div>
+    </section>
+
+    <!-- Игра в комнате -->
+    <section id="game" hidden>
+      <div class="top">
+        <button class="ghost" id="back">← Комнаты</button>
+        <span class="room-code">Комната <b id="roomCode"></b></span>
+      </div>
+      <p class="you muted" id="you">Подключаемся…</p>
+      <div class="status" id="status"></div>
+      <div class="board" id="board"></div>
+      <div class="score">
+        <div class="sx">Крестики<b id="sX">0</b></div>
+        <div>Ничьи<b id="sD">0</b></div>
+        <div class="so">Нолики<b id="sO">0</b></div>
+      </div>
+      <button id="reset" hidden>Новая партия</button>
+      <div class="panel share" id="share" hidden>
+        Отправьте другу ссылку:
+        <code id="shareLink"></code>
+        <button id="copy">Скопировать ссылку</button>
+      </div>
+    </section>
   </main>
 
   <script>
@@ -126,68 +221,180 @@
       sessionStorage.setItem('ttt-id', id);
     }
 
+    const $ = (s) => document.getElementById(s);
     const NAMES = { X: 'крестики ✕', O: 'нолики ◯' };
-    const boardEl = document.getElementById('board');
-    const cells = [];
-    for (let i = 0; i < 9; i++) {
-      const b = document.createElement('button');
-      b.className = 'cell';
-      b.setAttribute('aria-label', 'Клетка ' + (i + 1));
-      b.onclick = () => post('/move', { id, cell: i });
-      boardEl.appendChild(b);
-      cells.push(b);
-    }
-    document.getElementById('reset').onclick = () => post('/reset', { id });
+    const needToWin = (n) => (n <= 4 ? n : n === 5 ? 4 : 5);
+    let shareBase = location.origin;
+    let selectedSize = 3;
 
     function post(url, body) {
       return fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-      });
+      }).then((r) => r.json().then((data) => ({ ok: r.ok, data })));
     }
 
-    function render(s) {
-      const both = s.online.X && s.online.O;
-      const myTurn = s.you && s.you === s.turn && !s.winner && both;
-
-      document.getElementById('you').textContent = s.you
-        ? 'Вы играете за ' + NAMES[s.you]
-        : 'Вы зритель: оба места заняты';
-
-      let status;
-      if (s.winner === 'draw') status = 'Ничья!';
-      else if (s.winner) status = s.winner === s.you ? 'Вы победили! 🎉'
-        : s.you ? 'Вы проиграли' : 'Победили ' + NAMES[s.winner];
-      else if (!both) status = 'Ждём второго игрока…';
-      else if (myTurn) status = 'Ваш ход';
-      else if (s.you) status = 'Ход соперника…';
-      else status = 'Ходят ' + NAMES[s.turn];
-      document.getElementById('status').textContent = status;
-
-      s.board.forEach((v, i) => {
-        const c = cells[i];
-        c.textContent = v === 'X' ? '✕' : v === 'O' ? '◯' : '';
-        c.className = 'cell' + (v ? ' ' + v : '') + (s.line && s.line.includes(i) ? ' win' : '');
-        c.disabled = !myTurn || !!v;
-      });
-
-      document.getElementById('sX').textContent = s.score.X;
-      document.getElementById('sO').textContent = s.score.O;
-      document.getElementById('sD').textContent = s.score.draw;
-      document.getElementById('reset').hidden = !(s.you && s.winner);
-
-      const share = document.getElementById('share');
-      share.hidden = both || !s.share.length;
-      share.innerHTML = 'Второму игроку откройте в браузере:<br>' +
-        s.share.map(a => '<code>' + a + '</code>').join('<br>');
+    // С localhost друг не зайдёт, поэтому подставляем адрес в сети
+    function updateShareBase(share) {
+      const local = ['localhost', '127.0.0.1'].includes(location.hostname);
+      if (local && share && share.length) shareBase = share[0];
     }
 
-    const events = new EventSource('/events?id=' + encodeURIComponent(id));
-    events.onmessage = (e) => render(JSON.parse(e.data));
-    events.onerror = () => {
-      document.getElementById('status').textContent = 'Нет связи с сервером…';
-    };
+    function goTo(code) {
+      location.search = code ? '?room=' + code : '';
+    }
+
+    // ---------- Лобби ----------
+    function initLobby() {
+      $('lobby').hidden = false;
+
+      for (let n = 3; n <= 10; n++) {
+        const b = document.createElement('button');
+        b.textContent = n + '×' + n;
+        b.onclick = () => selectSize(n);
+        $('sizes').appendChild(b);
+      }
+      selectSize(3);
+
+      $('create').onclick = async () => {
+        const { ok, data } = await post('/rooms', { size: selectedSize });
+        if (ok) goTo(data.code);
+        else $('lobbyError').textContent = data.error;
+      };
+      const join = () => {
+        const code = $('codeInput').value.trim().toUpperCase();
+        if (code.length === 4) goTo(code);
+        else $('lobbyError').textContent = 'Код состоит из 4 символов';
+      };
+      $('join').onclick = join;
+      $('codeInput').onkeydown = (e) => { if (e.key === 'Enter') join(); };
+
+      loadRooms();
+      setInterval(loadRooms, 3000);
+    }
+
+    function selectSize(n) {
+      selectedSize = n;
+      [...$('sizes').children].forEach((b, i) => b.classList.toggle('on', i + 3 === n));
+      $('sizeHint').textContent = 'Поле ' + n + '×' + n + ', для победы нужно ' + needToWin(n) + ' в ряд';
+    }
+
+    async function loadRooms() {
+      try {
+        const data = await fetch('/rooms').then((r) => r.json());
+        const list = $('rooms');
+        list.innerHTML = '';
+        for (const r of data.rooms) {
+          const li = document.createElement('li');
+          li.innerHTML = '<span><b>' + r.code + '</b><span class="muted">' + r.size + '×' + r.size +
+            ', ' + r.need + ' в ряд · игроков ' + r.players + '/2</span></span>';
+          const b = document.createElement('button');
+          b.textContent = 'Войти';
+          b.onclick = () => goTo(r.code);
+          li.appendChild(b);
+          list.appendChild(li);
+        }
+        $('noRooms').hidden = data.rooms.length > 0;
+      } catch {}
+    }
+
+    // ---------- Игра ----------
+    function initGame(code) {
+      $('game').hidden = false;
+      $('roomCode').textContent = code;
+      $('back').onclick = () => goTo('');
+      $('reset').onclick = () => post('/reset', { room: code, id });
+      $('copy').onclick = async () => {
+        const link = $('shareLink').textContent;
+        try {
+          await navigator.clipboard.writeText(link);
+          $('copy').textContent = 'Скопировано ✓';
+        } catch {
+          // Без https буфер обмена может быть недоступен — выделяем текст для Ctrl+C
+          getSelection().selectAllChildren($('shareLink'));
+          $('copy').textContent = 'Нажмите Ctrl+C';
+        }
+        setTimeout(() => ($('copy').textContent = 'Скопировать ссылку'), 2000);
+      };
+
+      let cells = [];
+      let prevBoard = null;
+
+      function buildBoard(n) {
+        const board = $('board');
+        board.style.setProperty('--n', n);
+        board.innerHTML = '';
+        cells = [];
+        for (let i = 0; i < n * n; i++) {
+          const b = document.createElement('button');
+          b.className = 'cell';
+          b.setAttribute('aria-label', 'Ряд ' + (Math.floor(i / n) + 1) + ', клетка ' + (i % n + 1));
+          b.onclick = () => post('/move', { room: code, id, cell: i });
+          board.appendChild(b);
+          cells.push(b);
+        }
+      }
+
+      function render(s) {
+        if (cells.length !== s.board.length) buildBoard(s.size);
+        updateShareBase(s.share);
+
+        const both = s.online.X && s.online.O;
+        const myTurn = s.you && s.you === s.turn && !s.winner && both;
+
+        $('you').textContent = (s.you ? 'Вы играете за ' + NAMES[s.you] : 'Вы зритель: оба места заняты') +
+          ' · ' + s.size + '×' + s.size + ', ' + s.need + ' в ряд';
+
+        let status;
+        if (s.winner === 'draw') status = 'Ничья!';
+        else if (s.winner) status = s.winner === s.you ? 'Вы победили! 🎉'
+          : s.you ? 'Вы проиграли' : 'Победили ' + NAMES[s.winner];
+        else if (!both) status = 'Ждём второго игрока…';
+        else if (myTurn) status = 'Ваш ход';
+        else if (s.you) status = 'Ход соперника…';
+        else status = 'Ходят ' + NAMES[s.turn];
+        $('status').textContent = status;
+
+        // Отмечаем последний ход соперника, чтобы его было легко найти на большом поле
+        const last = prevBoard ? s.board.findIndex((v, i) => v && !prevBoard[i]) : -1;
+        prevBoard = s.board;
+
+        s.board.forEach((v, i) => {
+          const c = cells[i];
+          c.textContent = v === 'X' ? '✕' : v === 'O' ? '◯' : '';
+          c.className = 'cell' + (v ? ' ' + v : '') +
+            (s.line && s.line.includes(i) ? ' win' : '') + (i === last ? ' last' : '');
+          c.disabled = !myTurn || !!v;
+        });
+
+        $('sX').textContent = s.score.X;
+        $('sO').textContent = s.score.O;
+        $('sD').textContent = s.score.draw;
+        $('reset').hidden = !(s.you && s.winner);
+
+        $('shareLink').textContent = shareBase + '/?room=' + s.code;
+        $('share').hidden = both;
+      }
+
+      const events = new EventSource('/events?room=' + encodeURIComponent(code) + '&id=' + encodeURIComponent(id));
+      events.onmessage = (e) => render(JSON.parse(e.data));
+      events.onerror = async () => {
+        // Комнаты нет (удалена или сервер перезапущен) — возвращаемся в лобби
+        const data = await fetch('/rooms').then((r) => r.json()).catch(() => null);
+        if (data && !data.rooms.some((r) => r.code === code) && !cells.length) {
+          events.close();
+          $('status').textContent = 'Комната ' + code + ' не найдена';
+          $('you').textContent = '';
+          return;
+        }
+        $('status').textContent = 'Нет связи с сервером…';
+      };
+    }
+
+    const code = new URLSearchParams(location.search).get('room');
+    if (code) initGame(code.toUpperCase());
+    else initLobby();
   </script>
 </body>
 </html>
